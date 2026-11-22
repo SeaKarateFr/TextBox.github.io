@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TextBox — Fast Text Hosting & Public Library</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            cream: {
+              50: '#FDFBF7',
+              100: '#F8F4EC',
+              200: '#EFE8D8',
+              300: '#E2D6BE',
+            },
+            catpink: {
+              400: '#F472B6',
+              500: '#EC4899',
+              600: '#DB2777',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.65);
+    }
+    .drop-active {
+      border-color: #EC4899 !important;
+      background-color: rgba(236, 72, 153, 0.08) !important;
+      transform: scale(1.005);
+    }
+    @keyframes popIn {
+      0% { opacity: 0; transform: translateY(6px) scale(0.98); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .animate-pop {
+      animation: popIn 0.18s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-cream-50 text-stone-800 dark:bg-zinc-950 dark:text-zinc-100 min-h-screen flex flex-col selection:bg-pink-200 selection:text-pink-900 dark:selection:bg-pink-900 dark:selection:text-pink-100">
+
+  <!-- Top Utility Bar -->
+  <header class="border-b border-cream-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+      <button id="logoResetBtn" class="flex items-center gap-2.5 group text-left focus:outline-none">
+        <span class="mono text-base sm:text-lg font-bold tracking-tight px-2.5 py-1 rounded-lg bg-pink-100 text-pink-700 dark:bg-pink-950/70 dark:text-pink-300 border border-pink-200 dark:border-pink-800/60 group-hover:scale-105 transition-transform">
+          /ᐠ｡ꞈ｡ᐟ\
+        </span>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <span class="font-bold text-lg tracking-tight text-stone-900 dark:text-white">TextBox</span>
+            <span class="mono text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-cream-200 dark:bg-zinc-800 text-stone-600 dark:text-zinc-400">v1.4</span>
+          </div>
+        </div>
+      </button>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <div id="syncBadge" title="Live connection status" class="flex items-center gap-1.5 text-xs mono px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/50">
+          <span id="syncDot" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="syncStatusText">Connecting...</span>
+        </div>
+
+        <button id="lookupIdBtn" class="text-xs sm:text-sm font-medium px-3 py-1.5 rounded-lg border border-cream-300 dark:border-zinc-700 bg-cream-100/70 dark:bg-zinc-800 hover:bg-cream-200/70 dark:hover:bg-zinc-700 transition-colors flex items-center gap-1.5" title="Open text by short ID">
+          <svg class="w-3.5 h-3.5 text-pink-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+          <span>Open ID</span>
+        </button>
+
+        <button id="themeToggleBtn" aria-label="Toggle dark mode" class="p-2 rounded-lg border border-cream-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-cream-100 dark:hover:bg-zinc-700 transition-colors">
+          <!-- Sun icon (shown in dark mode) -->
+          <svg id="sunIcon" class="w-4 h-4 hidden dark:block text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          <!-- Moon icon (shown in light mode) -->
+          <svg id="moonIcon" class="w-4 h-4 block dark:hidden text-stone-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-10">
+
+    <!-- Hero / Catbox-style Upload Box -->
+    <section class="space-y-4">
+      <div class="text-center max-w-xl mx-auto space-y-1.5">
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-stone-900 dark:text-white">
+          Cute, instant text hosting.
+        </h1>
+        <p class="text-xs sm:text-sm text-stone-500 dark:text-zinc-400">
+          Paste snippets, notes, logs, or drop a file. Share via instant short link or index it in the searchable public library.
+        </p>
+      </div>
+
+      <!-- Upload Card -->
+      <div class="bg-white dark:bg-zinc-900 border-2 border-cream-300 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden transition-all">
+        <!-- Mode Switcher Tabs -->
+        <div class="flex items-center justify-between border-b border-cream-200 dark:border-zinc-800 bg-cream-100/60 dark:bg-zinc-950/60 px-3 sm:px-4 py-2">
+          <div class="flex items-center gap-1.5">
+            <button type="button" id="tabPasteBtn" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-white dark:bg-zinc-800 text-pink-600 dark:text-pink-400 shadow-xs border border-cream-200 dark:border-zinc-700 transition-all">
+              ✎ Paste Text
+            </button>
+            <button type="button" id="tabDropBtn" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-stone-600 dark:text-zinc-400 hover:text-stone-900 dark:hover:text-zinc-200 transition-all">
+              📄 Drop File (.txt, .md, code)
+            </button>
+          </div>
+          <div class="mono text-[11px] text-stone-400 dark:text-zinc-500 hidden sm:block">
+            Max 250 KB • UTF-8
+          </div>
+        </div>
+
+        <!-- Form Body -->
+        <form id="uploadForm" class="p-4 sm:p-5 space-y-4">
+          <!-- Metadata Row -->
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            <div class="sm:col-span-5">
+              <label for="inputTitle" class="block text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-zinc-400 mb-1">Title</label>
+              <input id="inputTitle" type="text" maxlength="90" placeholder="Untitled snippet..." class="w-full px-3 py-2 text-sm rounded-xl border border-cream-300 dark:border-zinc-700 bg-cream-50/60 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:border-pink-400 transition-all" />
+            </div>
+
+            <div class="sm:col-span-4">
+              <label for="inputCategory" class="block text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-zinc-400 mb-1">Format / Category</label>
+              <select id="inputCategory" class="w-full px-3 py-2 text-sm rounded-xl border border-cream-300 dark:border-zinc-700 bg-cream-50/60 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:border-pink-400 transition-all">
+                <option value="Plain Text">Plain Text</option>
+                <option value="Code">Code / Snippet</option>
+                <option value="Markdown/Notes">Markdown / Notes</option>
+                <option value="JSON/Logs">JSON / Config / Logs</option>
+                <option value="Creative">Story / Lore / ASCII</option>
+              </select>
+            </div>
+
+            <div class="sm:col-span-3">
+              <label for="inputTags" class="block text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-zinc-400 mb-1">Tags (comma sep)</label>
+              <input id="inputTags" type="text" maxlength="60" placeholder="python, notes, lore" class="w-full px-3 py-2 text-sm rounded-xl border border-cream-300 dark:border-zinc-700 bg-cream-50/60 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:border-pink-400 transition-all" />
+            </div>
+          </div>
+
+          <!-- Paste View -->
+          <div id="pasteAreaWrapper" class="relative">
+            <textarea id="inputContent" rows="7" placeholder="Paste or type anything here... (Tip: You can also drag & drop a text file directly onto this box!)" class="w-full mono text-xs sm:text-sm p-3.5 rounded-xl border border-cream-300 dark:border-zinc-700 bg-cream-50/40 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:border-pink-400 transition-all resize-y leading-relaxed"></textarea>
+            <div class="flex items-center justify-between mt-1.5 text-[11px] mono text-stone-400 dark:text-zinc-500">
+              <span id="liveStats">0 chars • 0 lines</span>
+              <button type="button" id="clearEditorBtn" class="hover:text-pink-500 transition-colors">Clear</button>
+            </div>
+          </div>
+
+          <!-- File Dropzone View -->
+          <div id="dropzoneWrapper" class="hidden">
+            <div id="dropzoneBox" class="border-2 border-dashed border-cream-300 dark:border-zinc-700 rounded-xl p-8 text-center cursor-pointer hover:border-pink-400 dark:hover:border-pink-500 bg-cream-50/50 dark:bg-zinc-950/60 transition-all">
+              <input id="fileInput" type="file" accept=".txt,.md,.json,.js,.ts,.py,.html,.css,.csv,.log,.yml,.yaml,.xml,.sh,.rs,.go,.java,.c,.cpp,.sql,.ini,.toml" class="hidden" />
+              <div class="mono text-2xl mb-2 text-pink-500">(=^･ω･^=)ﾉ</div>
+              <p class="text-sm font-semibold text-stone-800 dark:text-zinc-200">Select or drop a text/code file here</p>
+              <p class="text-xs text-stone-500 dark:text-zinc-400 mt-1">Supports .txt, .md, .json, .py, .js, .log, .csv, and more</p>
+              <div id="selectedFileBadge" class="hidden mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300 text-xs mono font-medium">
+                <span id="selectedFileName">file.txt</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Footer -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-cream-200 dark:border-zinc-800">
+            <!-- Visibility Toggle -->
+            <div class="flex items-center gap-3">
+              <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input id="visibilityPublic" type="radio" name="visibility" value="public" checked class="accent-pink-500 w-4 h-4" />
+                <span class="text-xs sm:text-sm font-medium text-stone-700 dark:text-zinc-300">Public Library</span>
+              </label>
+              <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input id="visibilityUnlisted" type="radio" name="visibility" value="unlisted" class="accent-pink-500 w-4 h-4" />
+                <span class="text-xs sm:text-sm font-medium text-stone-500 dark:text-zinc-400">Unlisted (Link only)</span>
+              </label>
+            </div>
+
+            <div class="flex items-center gap-2 self-end sm:self-auto">
+              <input id="inputAuthor" type="text" maxlength="30" placeholder="Anon (optional)" class="w-32 sm:w-36 px-2.5 py-2 text-xs rounded-xl border border-cream-300 dark:border-zinc-700 bg-cream-50/60 dark:bg-zinc-950 focus:outline-none focus:border-pink-400" />
+              <button type="submit" id="submitBtn" class="px-5 py-2 rounded-xl bg-pink-500 hover:bg-pink-600 active:scale-[0.99] text-white font-semibold text-sm shadow-sm shadow-pink-500/20 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span>Upload Text</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Instant Upload Result Banner -->
+        <div id="uploadResultBanner" class="hidden border-t-2 border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/90 dark:bg-emerald-950/30 p-4 animate-pop">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="space-y-0.5">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">✓ Hosted & Ready</span>
+                <span id="resultVisibilityBadge" class="text-[10px] mono px-2 py-0.5 rounded-full bg-white dark:bg-zinc-800 text-stone-600 dark:text-zinc-300 border border-emerald-200 dark:border-zinc-700">Public</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <code id="generatedShortUrl" class="mono text-sm sm:text-base font-bold text-stone-900 dark:text-white select-all">txt.box/------</code>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" id="copyLinkBtn" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                <span>Copy Link</span>
+              </button>
+              <button type="button" id="copyRawResultBtn" class="px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 hover:bg-cream-100 dark:hover:bg-zinc-700 text-stone-800 dark:text-zinc-200 border border-emerald-200 dark:border-zinc-700 text-xs font-semibold transition-colors">
+                Copy Raw Text
+              </button>
+              <button type="button" id="openUploadedBtn" class="px-3 py-1.5 rounded-lg bg-pink-500 hover:bg-pink-600 text-white text-xs font-semibold transition-colors">
+                View Paste →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Searchable Public Library Section -->
+    <section id="librarySection" class="space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+        <div>
+          <h2 class="text-lg sm:text-xl font-bold text-stone-900 dark:text-white flex items-center gap-2">
+            <span>Public Text Library</span>
+            <span id="libraryCountBadge" class="mono text-xs font-semibold px-2 py-0.5 rounded-full bg-cream-200 dark:bg-zinc-800 text-stone-600 dark:text-zinc-300">0</span>
+          </h2>
+          <p class="text-xs text-stone-500 dark:text-zinc-400">Real-time index of community pastes, notes, code snippets, and logs.</p>
+        </div>
+
+        <!-- Sort Control -->
+        <div class="flex items-center gap-2">
+          <label for="sortSelect" class="text-xs text-stone-500 dark:text-zinc-400">Sort:</label>
+          <select id="sortSelect" class="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-cream-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:outline-none focus:border-pink-400">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="views">Most Viewed</option>
+            <option value="longest">Largest Content</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Search Input + Category Filter Pills -->
+      <div class="space-y-3">
+        <div class="relative">
+          <svg class="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input id="searchInput" type="text" placeholder="Search by title, keywords, #tags, author, or short ID (e.g., a8f92k)..." class="w-full pl-10 pr-20 py-2.5 text-sm rounded-xl border border-cream-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:border-pink-400 transition-all" />
+          <button id="clearSearchBtn" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium px-2 py-0.5 rounded bg-cream-200 dark:bg-zinc-800 text-stone-600 dark:text-zinc-300 hover:bg-cream-300">
+            Clear
+          </button>
+        </div>
+
+        <!-- Category Filter Pills -->
+        <div id="categoryPills" class="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <button data-cat="All" class="cat-pill active px-3 py-1.5 rounded-full text-xs font-semibold bg-stone-900 text-white dark:bg-pink-500 dark:text-white transition-all whitespace-nowrap">
+            All Texts
+          </button>
+          <button data-cat="Plain Text" class="cat-pill px-3 py-1.5 rounded-full text-xs font-medium bg-white dark:bg-zinc-900 text-stone-600 dark:text-zinc-300 border border-cream-300 dark:border-zinc-800 hover:border-pink-400 transition-all whitespace-nowrap">
+            Plain Text
+          </button>
+          <button data-cat="Code" class="cat-pill px-3 py-1.5 rounded-full text-xs font-medium bg-white dark:bg-zinc-900 text-stone-600 dark:text-zinc-300 border border-cream-300 dark:border-zinc-800 hover:border-pink-400 transition-all whitespace-nowrap">
+            Code
+          </button>
+          <button data-cat="Markdown/Notes" class="cat-pill px-3 py-1.5 rounded-full text-xs font-medium bg-white dark:bg-zinc-900 text-stone-600 dark:text-zinc-300 border border-cream-300 dark:border-zinc-800 hover:border-pink-400 transition-all whitespace-nowrap">
+            Markdown / Notes
+          </button>
+          <button data-cat="JSON/Logs" class="cat-pill px-3 py-1.5 rounded-full text-xs font-medium bg-white dark:bg-zinc-900 text-stone-600 dark:text-zinc-300 border border-cream-300 dark:border-zinc-800 hover:border-pink-400 transition-all whitespace-nowrap">
+            JSON / Logs
+          </button>
+          <button data-cat="Creative" class="cat-pill px-3 py-1.5 rounded-full text-xs font-medium bg-white dark:bg-zinc-900 text-stone-600 dark:text-zinc-300 border border-cream-300 dark:border-zinc-800 hover:border-pink-400 transition-all whitespace-nowrap">
+            Creative / Lore
+          </button>
+        </div>
+      </div>
+
+      <!-- Library Grid -->
+      <div id="libraryGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        <!-- Loading skeletons -->
+        <div class="p-4 rounded-2xl border border-cream-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 animate-pulse space-y-3">
+          <div class="h-4 bg-cream-200 dark:bg-zinc-800 rounded w-2/3"></div>
+          <div class="h-16 bg-cream-100 dark:bg-zinc-950 rounded"></div>
+          <div class="h-3 bg-cream-200 dark:bg-zinc-800 rounded w-1/3"></div>
+        </div>
+        <div class="p-4 rounded-2xl border border-cream-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 animate-pulse space-y-3">
+          <div class="h-4 bg-cream-200 dark:bg-zinc-800 rounded w-1/2"></div>
+          <div class="h-16 bg-cream-100 dark:bg-zinc-950 rounded"></div>
+          <div class="h-3 bg-cream-200 dark:bg-zinc-800 rounded w-1/4"></div>
+        </div>
+      </div>
+
+      <!-- Empty Search State -->
+      <div id="emptyLibraryState" class="hidden text-center py-12 px-4 rounded-2xl border border-dashed border-cream-300 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/40">
+        <div class="mono text-xl text-stone-400 mb-1">(・_・;)</div>
+        <p class="text-sm font-semibold text-stone-700 dark:text-zinc-300">No matching texts found</p>
+        <p class="text-xs text-stone-500 dark:text-zinc-400 mt-1">Try clearing your search query or switching category filters.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Minimal Catbox-style Footer -->
+  <footer class="border-t border-cream-200 dark:border-zinc-800 py-6 mt-12 text-center text-xs text-stone-500 dark:text-zinc-500">
+    <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="mono">TextBox • Lightweight Text Hosting & Public Archive</div>
+      <div>No accounts required • Instant links • Community searchable</div>
+    </div>
+  </footer>
+
+  <!-- Full-Screen / Modal Text Reader -->
+  <div id="readerModal" class="fixed inset-0 z-50 hidden bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-5">
+    <div class="bg-white dark:bg-zinc-900 border border-cream-300 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-pop">
+      <!-- Reader Header -->
+      <div class="px-4 sm:px-6 py-3.5 border-b border-cream-200 dark:border-zinc-800 flex items-start sm:items-center justify-between gap-3 bg-cream-50/70 dark:bg-zinc-950/70">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="readerSlugBadge" class="mono text-xs font-bold px-2 py-0.5 rounded bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300">txt.box/------</span>
+            <span id="readerCategoryBadge" class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-cream-200 dark:bg-zinc-800 text-stone-700 dark:text-zinc-300">Plain Text</span>
+            <span id="readerVisibilityBadge" class="hidden text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300">Unlisted</span>
+          </div>
+          <h3 id="readerTitle" class="text-base sm:text-lg font-bold text-stone-900 dark:text-white truncate mt-1">Document Title</h3>
+          <div id="readerMetaLine" class="text-[11px] mono text-stone-500 dark:text-zinc-400 mt-0.5">
+            by Anon • 0 views • 0 chars • 0 lines
+          </div>
+        </div>
+
+        <button id="closeReaderBtn" class="p-2 rounded-xl border border-cream-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-cream-100 dark:hover:bg-zinc-700 text-stone-600 dark:text-zinc-300 transition-colors shrink-0" title="Close (Esc)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Reader Toolbar -->
+      <div class="px-4 sm:px-6 py-2 border-b border-cream-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div class="flex items-center gap-1.5">
+          <button id="toggleLineNumsBtn" class="px-2.5 py-1 rounded-lg border border-cream-300 dark:border-zinc-700 bg-cream-100 dark:bg-zinc-800 font-medium text-stone-700 dark:text-zinc-200 hover:border-pink-400 transition-colors">
+            # Line Numbers: ON
+          </button>
+          <button id="toggleWrapBtn" class="px-2.5 py-1 rounded-lg border border-cream-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-medium text-stone-600 dark:text-zinc-300 hover:border-pink-400 transition-colors">
+            Wrap: ON
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button id="readerCopyLinkBtn" class="px-2.5 py-1 rounded-lg border border-cream-300 dark:border-zinc-700 hover:bg-cream-100 dark:hover:bg-zinc-800 font-medium transition-colors">
+            Copy Link
+          </button>
+          <button id="readerCopyRawBtn" class="px-2.5 py-1 rounded-lg bg-pink-500 hover:bg-pink-600 text-white font-semibold transition-colors">
+            Copy Text
+          </button>
+          <button id="readerDownloadBtn" class="px-2.5 py-1 rounded-lg border border-cream-300 dark:border-zinc-700 hover:bg-cream-100 dark:hover:bg-zinc-800 font-medium transition-colors">
+            Download .txt
+          </button>
+        </div>
+      </div>
+
+      <!-- Reader Content Area -->
+      <div class="flex-1 overflow-auto bg-cream-50/40 dark:bg-zinc-950 p-4 sm:p-6">
+        <div id="readerTagsRow" class="flex flex-wrap gap-1.5 mb-3"></div>
+        <div id="readerCodeContainer" class="mono text-xs sm:text-sm leading-relaxed text-stone-800 dark:text-zinc-200"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lookup by Short ID Modal -->
+  <div id="lookupModal" class="fixed inset-0 z-50 hidden bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-zinc-900 border border-cream-300 dark:border-zinc-800 rounded-2xl shadow-xl w-full max-w-md p-5 space-y-4 animate-pop">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-base text-stone-900 dark:text-white">Open Text by Short ID</h3>
+        <button id="closeLookupBtn" class="text-stone-400 hover:text-stone-700 dark:hover:text-zinc-200">✕</button>
+      </div>
+      <p class="text-xs text-stone-500 dark:text-zinc-400">
+        Enter a 6-character TextBox slug (e.g., <code class="mono text-pink-500">cat901</code>) or paste a full <code class="mono">txt.box/</code> link to view public or unlisted pastes.
+      </p>
+      <form id="lookupForm" class="space-y-3">
+        <input id="lookupSlugInput" type="text" placeholder="txt.box/a8f92k or a8f92k" class="w-full mono text-sm px-3.5 py-2.5 rounded-xl border border-cream-300 dark:border-zinc-700 bg-cream-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-pink-400/50" required />
+        <div class="flex justify-end gap-2">
+          <button type="button" id="cancelLookupBtn" class="px-3.5 py-2 rounded-xl text-xs font-medium border border-cream-300 dark:border-zinc-700">Cancel</button>
+          <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-pink-500 hover:bg-pink-600 text-white">Open Paste</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Non-intrusive Toast Notification -->
+  <div id="toastBanner" class="fixed bottom-5 right-5 z-50 hidden max-w-sm px-4 py-3 rounded-xl bg-stone-900 dark:bg-zinc-800 text-white text-xs sm:text-sm font-medium shadow-lg border border-stone-700 flex items-center gap-2.5 animate-pop">
+    <span id="toastIcon" class="text-pink-400 font-bold">✓</span>
+    <span id="toastMessage">Copied to clipboard!</span>
+  </div>
+
+  <!-- Firebase & Application Logic -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      setDoc,
+      getDoc,
+      getDocs,
+      updateDoc,
+      onSnapshot,
+      increment
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- User's Standalone Firebase Configuration (catboxjr) ---
+    const USER_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDmEb1mIHMIeMvF4jvkXRmSVeAWJB6Zig4",
+      authDomain: "catboxjr.firebaseapp.com",
+      projectId: "catboxjr",
+      storageBucket: "catboxjr.firebasestorage.app",
+      messagingSenderId: "263254818121",
+      appId: "1:263254818121:web:256bce1d55c9966c04ee98",
+      measurementId: "G-H67BN9TTR8"
+    };
+
+    // Detect whether running inside hosted preview or standalone deployment
+    const hasInjectedEnv = typeof __firebase_config !== "undefined" && Boolean(__firebase_config);
+    const appId = typeof __app_id !== "undefined" ? __app_id : "catboxjr";
+    const firebaseConfig = hasInjectedEnv ? JSON.parse(__firebase_config) : USER_FIREBASE_CONFIG;
+
+    // Helper for Firestore collection & document paths
+    // Uses clean `pastes` collection on standalone catboxjr, or artifact path in preview
+    function getPastesCollectionRef(firestoreDb) {
+      if (hasInjectedEnv) {
+        return collection(firestoreDb, "artifacts", appId, "public", "data", "texts");
+      }
+      return collection(firestoreDb, "pastes");
+    }
+
+    function getPasteDocRef(firestoreDb, slug) {
+      if (hasInjectedEnv) {
+        return doc(firestoreDb, "artifacts", appId, "public", "data", "texts", slug);
+      }
+      return doc(firestoreDb, "pastes", slug);
+    }
+
+    let app = null;
+    let db = null;
+    let auth = null;
+    let currentUser = null;
+    let unsubscribeLibrary = null;
+    // App State
+    let allPublicTexts = [];
+    let selectedCategory = "All";
+    let searchQuery = "";
+    let sortBy = "newest";
+    let activeReaderItem = null;
+    let showLineNumbers = true;
+    let wrapLines = true;
+    let lastUploadedItem = null;
+
+    // Seed Entries (populated automatically if the public library is initially empty)
+    const SEED_ENTRIES = [
+      {
+        slug: "cat901",
+        title: "Welcome to TextBox! Quick Guide & Formatting Tips",
+        category: "Markdown/Notes",
+        author: "MochiAdmin",
+        tags: ["welcome", "guide", "readme"],
+        visibility: "public",
+        views: 142,
+        createdAt: Date.now() - 1000 * 60 * 60 * 5,
+        content: `# Welcome to TextBox (/ᐠ｡ꞈ｡ᐟ\\)\n\nTextBox is a fast, clutter-free home for plain text, code snippets, notes, logs, and stories.\n\n## Features:\n1. Instant Links: Every upload gets a short txt.box/<id> slug.\n2. Public Library vs Unlisted: Choose whether your text appears in the searchable community library or stays accessible only via direct link.\n3. Drag & Drop: Drop any .txt, .md, .json, or code file directly onto the upload box.\n\nHappy pasting!`
+      },
+      {
+        slug: "py404x",
+        title: "Fast Async HTTP Health Checker (Python 3.11+)",
+        category: "Code",
+        author: "kuro_dev",
+        tags: ["python", "asyncio", "networking", "script"],
+        visibility: "public",
+        views: 89,
+        createdAt: Date.now() - 1000 * 60 * 60 * 14,
+        content: `import asyncio\nimport urllib.request\nimport time\n\nENDPOINTS = [\n    "https://example.com",\n    "https://httpbin.org/status/200",\n    "https://api.github.com"\n]\n\ndef check_url(url: str) -> tuple[str, int, float]:\n    start = time.perf_counter()\n    try:\n        with urllib.request.urlopen(url, timeout=5) as resp:\n            elapsed = (time.perf_counter() - start) * 1000\n            return (url, resp.status, round(elapsed, 1))\n    except Exception as exc:\n        return (url, 0, -1.0)\n\nasync def main():\n    loop = asyncio.get_running_loop()\n    tasks = [loop.run_in_executor(None, check_url, u) for u in ENDPOINTS]\n    for url, status, ms in await asyncio.gather(*tasks):\n        print(f"[{status}] {url} -> {ms}ms")\n\nif __name__ == "__main__":\n    asyncio.run(main())`
+      },
+      {
+        slug: "cfg77b",
+        title: "Minimal Neovim + JetBrains Mono Config Snippet",
+        category: "JSON/Logs",
+        author: "dotfiles_enjoyer",
+        tags: ["config", "json", "terminal", "setup"],
+        visibility: "public",
+        views: 64,
+        createdAt: Date.now() - 1000 * 60 * 60 * 26,
+        content: `{\n  "editor.fontFamily": "'JetBrains Mono', monospace",\n  "editor.fontSize": 14,\n  "editor.lineHeight": 1.6,\n  "editor.tabSize": 2,\n  "editor.renderWhitespace": "boundary",\n  "workbench.colorTheme": "Warm Cream Light",\n  "files.autoSave": "onFocusChange",\n  "terminal.integrated.cursorStyle": "underline"\n}`
+      },
+      {
+        slug: "lor32m",
+        title: "Field Notes: The Clockwork Lighthouse of Isle 9",
+        category: "Creative",
+        author: "ink_scribe",
+        tags: ["worldbuilding", "lore", "scifi", "story"],
+        visibility: "public",
+        views: 117,
+        createdAt: Date.now() - 1000 * 60 * 60 * 42,
+        content: `LOG ENTRY 044 — KEEPER'S ALMANAC\n----------------------------------------\nThe brass lenses of Lighthouse Nine do not burn whale oil or plasma. Every dusk, the tidal gears beneath the basalt cliff wind the mainspring for twelve hours of amber beam.\n\nLocals say when the fog rolls in from the Cobalt Trench, the light doesn't warn ships away from the rocks—it guides lost mail-skiffs back from yesterday.`
+      },
+      {
+        slug: "sql81p",
+        title: "Useful PostgreSQL Query: Find Bloated Tables & Index Sizes",
+        category: "Code",
+        author: "db_cat",
+        tags: ["sql", "postgres", "database", "ops"],
+        visibility: "public",
+        views: 53,
+        createdAt: Date.now() - 1000 * 60 * 60 * 60,
+        content: `SELECT\n  schemaname AS schema,\n  relname AS table_name,\n  pg_size_pretty(pg_total_relation_size(relid)) AS total_size,\n  pg_size_pretty(pg_relation_size(relid)) AS data_size,\n  pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) AS external_size\nFROM pg_catalog.pg_statio_user_tables\nORDER BY pg_total_relation_size(relid) DESC\nLIMIT 15;`
+      },
+      {
+        slug: "tea55k",
+        title: "Cold Brew Oolong & Matcha Ratio Cheat Sheet",
+        category: "Plain Text",
+        author: "tea_witch",
+        tags: ["tea", "recipe", "notes", "daily"],
+        visibility: "public",
+        views: 95,
+        createdAt: Date.now() - 1000 * 60 * 60 * 75,
+        content: `COLD BREW OOLONG (1 Liter Pitcher)\n- Leaf amount: 12g loose leaf Tieguanyin or High Mountain Oolong\n- Water: 1000ml filtered room-temp water\n- Steep time: 6 to 8 hours in fridge\n- Note: Zero bitterness, super floral aroma!\n\nICED OAT MATCHA\n- 3g ceremonial matcha sifted\n- 40ml warm water (75°C / 167°F), whisk in 'W' motion\n- Pour over 160ml chilled oat milk + ice`
+      }
+    ];
+
+    // --- DOM References ---
+    const themeToggleBtn = document.getElementById("themeToggleBtn");
+    const syncBadge = document.getElementById("syncBadge");
+    const syncDot = document.getElementById("syncDot");
+    const syncStatusText = document.getElementById("syncStatusText");
+    const tabPasteBtn = document.getElementById("tabPasteBtn");
+    const tabDropBtn = document.getElementById("tabDropBtn");
+    const pasteAreaWrapper = document.getElementById("pasteAreaWrapper");
+    const dropzoneWrapper = document.getElementById("dropzoneWrapper");
+    const dropzoneBox = document.getElementById("dropzoneBox");
+    const fileInput = document.getElementById("fileInput");
+    const selectedFileBadge = document.getElementById("selectedFileBadge");
+    const selectedFileName = document.getElementById("selectedFileName");
+
+    const uploadForm = document.getElementById("uploadForm");
+    const inputTitle = document.getElementById("inputTitle");
+    const inputCategory = document.getElementById("inputCategory");
+    const inputTags = document.getElementById("inputTags");
+    const inputContent = document.getElementById("inputContent");
+    const inputAuthor = document.getElementById("inputAuthor");
+    const liveStats = document.getElementById("liveStats");
+    const clearEditorBtn = document.getElementById("clearEditorBtn");
+    const submitBtn = document.getElementById("submitBtn");
+
+    const uploadResultBanner = document.getElementById("uploadResultBanner");
+    const generatedShortUrl = document.getElementById("generatedShortUrl");
+    const resultVisibilityBadge = document.getElementById("resultVisibilityBadge");
+    const copyLinkBtn = document.getElementById("copyLinkBtn");
+    const copyRawResultBtn = document.getElementById("copyRawResultBtn");
+    const openUploadedBtn = document.getElementById("openUploadedBtn");
+
+    const searchInput = document.getElementById("searchInput");
+    const clearSearchBtn = document.getElementById("clearSearchBtn");
+    const sortSelect = document.getElementById("sortSelect");
+    const categoryPills = document.getElementById("categoryPills");
+    const libraryGrid = document.getElementById("libraryGrid");
+    const libraryCountBadge = document.getElementById("libraryCountBadge");
+    const emptyLibraryState = document.getElementById("emptyLibraryState");
+
+    const readerModal = document.getElementById("readerModal");
+    const closeReaderBtn = document.getElementById("closeReaderBtn");
+    const readerSlugBadge = document.getElementById("readerSlugBadge");
+    const readerCategoryBadge = document.getElementById("readerCategoryBadge");
+    const readerVisibilityBadge = document.getElementById("readerVisibilityBadge");
+    const readerTitle = document.getElementById("readerTitle");
+    const readerMetaLine = document.getElementById("readerMetaLine");
+    const readerTagsRow = document.getElementById("readerTagsRow");
+    const readerCodeContainer = document.getElementById("readerCodeContainer");
+    const toggleLineNumsBtn = document.getElementById("toggleLineNumsBtn");
+    const toggleWrapBtn = document.getElementById("toggleWrapBtn");
+    const readerCopyLinkBtn = document.getElementById("readerCopyLinkBtn");
+    const readerCopyRawBtn = document.getElementById("readerCopyRawBtn");
+    const readerDownloadBtn = document.getElementById("readerDownloadBtn");
+
+    const lookupIdBtn = document.getElementById("lookupIdBtn");
+    const lookupModal = document.getElementById("lookupModal");
+    const closeLookupBtn = document.getElementById("closeLookupBtn");
+    const cancelLookupBtn = document.getElementById("cancelLookupBtn");
+    const lookupForm = document.getElementById("lookupForm");
+    const lookupSlugInput = document.getElementById("lookupSlugInput");
+
+    const toastBanner = document.getElementById("toastBanner");
+    const toastMessage = document.getElementById("toastMessage");
+    const logoResetBtn = document.getElementById("logoResetBtn");
+
+    // --- Utility Functions ---
+    let toastTimer = null;
+    function showToast(msg) {
+      toastMessage.textContent = msg;
+      toastBanner.classList.remove("hidden");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toastBanner.classList.add("hidden");
+      }, 2600);
+    }
+
+    function copyTextToClipboard(text, successMsg = "Copied to clipboard!") {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        showToast(successMsg);
+      } catch (err) {
+        showToast("Unable to copy automatically.");
+      }
+      document.body.removeChild(textarea);
+    }
+
+    function generateSlug(length = 6) {
+      const chars = "abcdefghijkmnpqrstuvwxyz23456789";
+      let out = "";
+      for (let i = 0; i < length; i++) {
+        out += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return out;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function formatRelativeTime(timestamp) {
+      const diffSec = Math.max(1, Math.floor((Date.now() - timestamp) / 1000));
+      if (diffSec < 60) return "just now";
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return `${diffHr}h ago`;
+      const diffDay = Math.floor(diffHr / 24);
+      if (diffDay < 30) return `${diffDay}d ago`;
+      return new Date(timestamp).toLocaleDateString();
+    }
+
+    function getTextMetrics(text) {
+      const chars = text.length;
+      const lines = text ? text.split(/\r\n|\r|\n/).length : 0;
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      return { chars, lines, words };
+    }
+
+    function inferCategoryFromFilename(filename) {
+      const ext = filename.split(".").pop().toLowerCase();
+      if (["js", "ts", "py", "java", "c", "cpp", "rs", "go", "html", "css", "sh", "sql"].includes(ext)) return "Code";
+      if (["md", "markdown"].includes(ext)) return "Markdown/Notes";
+      if (["json", "log", "yml", "yaml", "xml", "toml", "ini", "csv"].includes(ext)) return "JSON/Logs";
+      return "Plain Text";
+    }
+
+    function buildShareUrl(slug) {
+      const url = new URL(window.location.href);
+      url.hash = "";
+      url.searchParams.set("id", slug);
+      return url.toString();
+    }
+
+    function updateBrowserSlugState(slug) {
+      try {
+        const url = new URL(window.location.href);
+        url.hash = "";
+        if (slug) {
+          url.searchParams.set("id", slug);
+        } else {
+          url.searchParams.delete("id");
+        }
+        history.replaceState(null, "", url.toString());
+    function setConnectionStatus(state, label, tooltipText = "") {
+      syncStatusText.textContent = label;
+      if (tooltipText) {
+        syncBadge.title = tooltipText;
+      }
+      if (state === "live") {
+        syncBadge.className = "flex items-center gap-1.5 text-xs mono px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/50";
+        syncDot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse";
+      } else if (state === "connecting") {
+        syncBadge.className = "flex items-center gap-1.5 text-xs mono px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/50";
+        syncDot.className = "w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping";
+      } else {
+        syncBadge.className = "flex items-center gap-1.5 text-xs mono px-2.5 py-1 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200/70 dark:border-rose-800/50 cursor-help";
+        syncDot.className = "w-1.5 h-1.5 rounded-full bg-rose-500";
+      }
+    }
+
+    // --- Theme Management ---
+    function initTheme() {
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (prefersDark) {
+        document.documentElement.classList.add("dark");
+      }
+    }
+    initTheme();
+
+    themeToggleBtn.addEventListener("click", () => {
+      document.documentElement.classList.toggle("dark");
+    });
+
+    // --- Upload Tabs & File Dropzone ---
+    function switchToPasteTab() {
+      tabPasteBtn.className = "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-white dark:bg-zinc-800 text-pink-600 dark:text-pink-400 shadow-xs border border-cream-200 dark:border-zinc-700 transition-all";
+      tabDropBtn.className = "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-stone-600 dark:text-zinc-400 hover:text-stone-900 dark:hover:text-zinc-200 transition-all";
+      pasteAreaWrapper.classList.remove("hidden");
+      dropzoneWrapper.classList.add("hidden");
+    }
+
+    function switchToDropTab() {
+      tabDropBtn.className = "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-white dark:bg-zinc-800 text-pink-600 dark:text-pink-400 shadow-xs border border-cream-200 dark:border-zinc-700 transition-all";
+      tabPasteBtn.className = "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-stone-600 dark:text-zinc-400 hover:text-stone-900 dark:hover:text-zinc-200 transition-all";
+      dropzoneWrapper.classList.remove("hidden");
+      pasteAreaWrapper.classList.add("hidden");
+    }
+
+    tabPasteBtn.addEventListener("click", switchToPasteTab);
+    tabDropBtn.addEventListener("click", switchToDropTab);
+
+    function updateLiveStats() {
+      const { chars, lines } = getTextMetrics(inputContent.value);
+      liveStats.textContent = `${chars.toLocaleString()} chars • ${lines.toLocaleString()} lines`;
+    }
+
+    inputContent.addEventListener("input", updateLiveStats);
+
+    clearEditorBtn.addEventListener("click", () => {
+      inputContent.value = "";
+      inputTitle.value = "";
+      inputTags.value = "";
+      selectedFileBadge.classList.add("hidden");
+      updateLiveStats();
+    });
+
+    function handleLoadedFile(file) {
+      if (!file) return;
+      if (file.size > 260 * 1024) {
+        showToast("File is too large (max 250 KB).");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        inputContent.value = e.target.result || "";
+        if (!inputTitle.value.trim()) {
+          inputTitle.value = file.name;
+        }
+        inputCategory.value = inferCategoryFromFilename(file.name);
+        selectedFileName.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+        selectedFileBadge.classList.remove("hidden");
+        updateLiveStats();
+        switchToPasteTab();
+        showToast(`Loaded "${file.name}" into editor!`);
+      };
+      reader.readAsText(file);
+    }
+
+    dropzoneBox.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => handleLoadedFile(e.target.files[0]));
+
+    // Drag & drop support on both dropzone and textarea
+    [dropzoneBox, inputContent].forEach((el) => {
+      el.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        el.classList.add("drop-active");
+      });
+      el.addEventListener("dragleave", () => {
+        el.classList.remove("drop-active");
+      });
+      el.addEventListener("drop", (e) => {
+        e.preventDefault();
+        el.classList.remove("drop-active");
+        if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+          handleLoadedFile(e.dataTransfer.files[0]);
+        }
+      });
+    });
+
+    // --- Firebase Initialization & Data Sync ---
+    async function initFirebaseAndData() {
+      setConnectionStatus("connecting", "Connecting...", "Connecting to Firebase...");
+
+      try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+
+        // Authenticate anonymously (or via custom token) before any Firestore query
+        if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
+          const cred = await signInWithCustomToken(auth, __initial_auth_token);
+          currentUser = cred.user;
+        } else {
+          const cred = await signInAnonymously(auth);
+          currentUser = cred.user;
+        }
+
+        if (!currentUser) {
+          throw new Error("Authentication returned no user.");
+        }
+
+        const targetLabel = hasInjectedEnv ? "Cloud Live" : "catboxjr Live";
+        setConnectionStatus("live", targetLabel, `Connected to Firebase project: ${firebaseConfig.projectId}`);
+
+        // Seed initial library if collection is empty
+        await seedInitialLibraryIfEmpty();
+
+        // Subscribe to real-time updates on public pastes collection
+        const textsCol = getPastesCollectionRef(db);
+        if (unsubscribeLibrary) unsubscribeLibrary();
+
+        unsubscribeLibrary = onSnapshot(
+          textsCol,
+          (snapshot) => {
+            setConnectionStatus("live", targetLabel, `Connected to ${firebaseConfig.projectId} (${snapshot.size} total docs)`);
+            const items = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data();
+              if (data && data.visibility !== "unlisted") {
+                items.push({ id: docSnap.id, ...data });
+              }
+            });
+            allPublicTexts = items;
+            renderLibrary();
+
+            // Open deep link (?id=xxxxxx or #xxxxxx) if present on load
+            checkInitialDeepLink();
+          },
+          (error) => {
+            console.error("Firestore listener error:", error);
+            const hint = error.code === "permission-denied"
+              ? "Firestore permission denied. Enable Test Mode or allow read/write on /pastes in Firebase Console."
+              : `Firestore error: ${error.message}`;
+            setConnectionStatus("offline", "Firestore Error", hint);
+            showToast(hint);
+          }
+        );
+      } catch (err) {
+        console.error("Firebase init failed:", err);
+        const hint = err.code === "auth/operation-not-allowed"
+          ? "Enable 'Anonymous' sign-in under Firebase Console → Authentication → Sign-in method."
+          : `Connection error: ${err.message}`;
+        setConnectionStatus("offline", "Auth Setup Needed", hint);
+        showToast(hint);
+        allPublicTexts = [...SEED_ENTRIES];
+        renderLibrary();
+        checkInitialDeepLink();
+      }
+    }
+
+    async function seedInitialLibraryIfEmpty() {
+      if (!db || !currentUser) return;
+      try {
+        const textsCol = getPastesCollectionRef(db);
+        const existingSnap = await getDocs(textsCol);
+        if (existingSnap.empty) {
+          for (const entry of SEED_ENTRIES) {
+            const docRef = getPasteDocRef(db, entry.slug);
+            await setDoc(docRef, entry);
+          }
+        }
+      } catch (err) {
+        console.error("Error seeding initial texts:", err);
+      }
+    }
+
+    // --- Form Submission (Upload Text) ---
+    uploadForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const rawContent = inputContent.value;
+      if (!rawContent || !rawContent.trim()) {
+        showToast("Please enter or drop some text first!");
+        inputContent.focus();
+        return;
+      }
+
+      if (rawContent.length > 260000) {
+        showToast("Text exceeds 250 KB limit.");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.querySelector("span").textContent = "Uploading...";
+
+      const slug = generateSlug(6);
+      const title = inputTitle.value.trim() || `Untitled #${slug}`;
+      const category = inputCategory.value;
+      const author = inputAuthor.value.trim() || "Anon";
+      const visibility = document.querySelector('input[name="visibility"]:checked').value;
+      const tags = inputTags.value
+        .split(",")
+        .map((t) => t.trim().replace(/^#/, "").toLowerCase())
+        .filter(Boolean)
+        .slice(0, 6);
+
+      const newEntry = {
+        slug,
+        title,
+        category,
+        author,
+        tags,
+        visibility,
+        content: rawContent,
+        views: 1,
+        createdAt: Date.now(),
+        uid: currentUser ? currentUser.uid : "anon"
+      };
+
+      try {
+        if (db && currentUser) {
+          const docRef = getPasteDocRef(db, slug);
+          await setDoc(docRef, newEntry);
+        } else {
+          showToast("Cloud database unavailable. Check Anonymous Auth & Firestore rules.");
+          return;
+        }
+
+        lastUploadedItem = newEntry;
+        generatedShortUrl.textContent = `?id=${slug}  (txt.box/${slug})`;
+        resultVisibilityBadge.textContent = visibility === "public" ? "Public Library" : "Unlisted Link";
+        uploadResultBanner.classList.remove("hidden");
+
+        // Update URL query param (?id=xxxxxx) for cross-device sharing
+        updateBrowserSlugState(slug);
+
+        // Clear editor inputs
+        inputContent.value = "";
+        inputTitle.value = "";
+        inputTags.value = "";
+        selectedFileBadge.classList.add("hidden");
+        updateLiveStats();
+
+        showToast(`Saved to Cloud! Share ID: ${slug}`);
+      } catch (err) {
+        console.error("Upload failed:", err);
+        showToast("Upload failed. Please check connection.");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.querySelector("span").textContent = "Upload Text";
+      }
+    });
+
+    // Result Banner Buttons
+    copyLinkBtn.addEventListener("click", () => {
+      if (!lastUploadedItem) return;
+      const shareUrl = buildShareUrl(lastUploadedItem.slug);
+      copyTextToClipboard(shareUrl, `Copied shareable link (?id=${lastUploadedItem.slug})!`);
+    });
+
+    copyRawResultBtn.addEventListener("click", () => {
+      if (!lastUploadedItem) return;
+      copyTextToClipboard(lastUploadedItem.content, "Copied raw text!");
+    });
+
+    openUploadedBtn.addEventListener("click", () => {
+      if (!lastUploadedItem) return;
+      openReader(lastUploadedItem);
+    });
+
+    // --- Library Filtering, Sorting & Rendering ---
+    function getCategoryBadgeStyle(cat) {
+      switch (cat) {
+        case "Code":
+          return "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800/60";
+        case "Markdown/Notes":
+          return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60";
+        case "JSON/Logs":
+          return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60";
+        case "Creative":
+          return "bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-950/60 dark:text-pink-300 dark:border-pink-800/60";
+        default:
+          return "bg-cream-100 text-stone-700 border-cream-300 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700";
+      }
+    }
+
+    function renderLibrary() {
+      const q = searchQuery.trim().toLowerCase();
+
+      let filtered = allPublicTexts.filter((item) => {
+        const matchesCat = selectedCategory === "All" || item.category === selectedCategory;
+        if (!matchesCat) return false;
+        if (!q) return true;
+
+        const inTitle = (item.title || "").toLowerCase().includes(q);
+        const inContent = (item.content || "").toLowerCase().includes(q);
+        const inSlug = (item.slug || "").toLowerCase().includes(q);
+        const inAuthor = (item.author || "").toLowerCase().includes(q);
+        const inTags = Array.isArray(item.tags) && item.tags.some((t) => t.toLowerCase().includes(q.replace(/^#/, "")));
+        return inTitle || inContent || inSlug || inAuthor || inTags;
+      });
+
+      // Sort in memory
+      filtered.sort((a, b) => {
+        if (sortBy === "oldest") return (a.createdAt || 0) - (b.createdAt || 0);
+        if (sortBy === "views") return (b.views || 0) - (a.views || 0);
+        if (sortBy === "longest") return (b.content?.length || 0) - (a.content?.length || 0);
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      });
+
+      libraryCountBadge.textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        libraryGrid.innerHTML = "";
+        emptyLibraryState.classList.remove("hidden");
+        return;
+      }
+
+      emptyLibraryState.classList.add("hidden");
+      libraryGrid.innerHTML = filtered
+        .map((item) => {
+          const { chars, lines } = getTextMetrics(item.content || "");
+          const previewLines = (item.content || "").split(/\r\n|\r|\n/).slice(0, 4).join("\n");
+          const tagsHtml = (item.tags || [])
+            .map(
+              (t) =>
+                `<span class="mono text-[10px] px-1.5 py-0.5 rounded bg-cream-100 dark:bg-zinc-800 text-stone-500 dark:text-zinc-400">#${escapeHtml(t)}</span>`
+            )
+            .join("");
+
+          return `
+            <article data-slug="${escapeHtml(item.slug)}" class="library-card group cursor-pointer rounded-2xl border border-cream-300/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-pink-400 dark:hover:border-pink-500/70 p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between gap-3">
+              <div class="space-y-2.5">
+                <div class="flex items-start justify-between gap-2">
+                  <h3 class="font-bold text-sm sm:text-base text-stone-900 dark:text-zinc-100 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors line-clamp-1">
+                    ${escapeHtml(item.title || "Untitled")}
+                  </h3>
+                  <span class="mono text-[11px] font-semibold px-2 py-0.5 rounded bg-cream-100 dark:bg-zinc-800 text-stone-600 dark:text-zinc-300 shrink-0">
+                    /${escapeHtml(item.slug)}
+                  </span>
+                </div>
+
+                <!-- Code/Text Snippet Preview -->
+                <pre class="mono text-[11px] sm:text-xs text-stone-600 dark:text-zinc-400 bg-cream-50/90 dark:bg-zinc-950/90 border border-cream-200/80 dark:border-zinc-800/80 rounded-xl p-2.5 overflow-hidden whitespace-pre-wrap break-words line-clamp-4 leading-relaxed max-h-24">${escapeHtml(previewLines)}</pre>
+              </div>
+
+              <div class="space-y-2 pt-1">
+                ${tagsHtml ? `<div class="flex flex-wrap gap-1">${tagsHtml}</div>` : ""}
+                <div class="flex items-center justify-between text-[11px] text-stone-500 dark:text-zinc-400 border-t border-cream-200/70 dark:border-zinc-800/70 pt-2">
+                  <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 rounded-full border text-[10px] font-semibold ${getCategoryBadgeStyle(item.category)}">
+                      ${escapeHtml(item.category || "Plain Text")}
+                    </span>
+                    <span class="truncate max-w-[90px]">by ${escapeHtml(item.author || "Anon")}</span>
+                  </div>
+                  <div class="mono flex items-center gap-2 shrink-0">
+                    <span>${lines}L • ${chars}c</span>
+                    <span>•</span>
+                    <span>${item.views || 0} views</span>
+                    <span>•</span>
+                    <span>${formatRelativeTime(item.createdAt || Date.now())}</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+
+      // Attach click handlers to cards
+      document.querySelectorAll(".library-card").forEach((card) => {
+        card.addEventListener("click", () => {
+          const slug = card.getAttribute("data-slug");
+          const item = allPublicTexts.find((t) => t.slug === slug);
+          if (item) openReader(item);
+        });
+      });
+    }
+
+    // Search & Filter Listeners
+    searchInput.addEventListener("input", (e) => {
+      searchQuery = e.target.value;
+      clearSearchBtn.classList.toggle("hidden", !searchQuery);
+      renderLibrary();
+    });
+
+    clearSearchBtn.addEventListener("click", () => {
+      searchQuery = "";
+      searchInput.value = "";
+      clearSearchBtn.classList.add("hidden");
+      renderLibrary();
+    });
+
+    sortSelect.addEventListener("change", (e) => {
+      sortBy = e.target.value;
+      renderLibrary();
+    });
+
+    categoryPills.addEventListener("click", (e) => {
+      const btn = e.target.closest(".cat-pill");
+      if (!btn) return;
+      selectedCategory = btn.getAttribute("data-cat");
+
+      document.querySelectorAll(".cat-pill").forEach((pill) => {
+        pill.className =
+          "cat-pill px-3 py-1.5 rounded-full text-xs font-medium bg-white dark:bg-zinc-900 text-stone-600 dark:text-zinc-300 border border-cream-300 dark:border-zinc-800 hover:border-pink-400 transition-all whitespace-nowrap";
+      });
+      btn.className =
+        "cat-pill active px-3 py-1.5 rounded-full text-xs font-semibold bg-stone-900 text-white dark:bg-pink-500 dark:text-white transition-all whitespace-nowrap";
+
+      renderLibrary();
+    });
+
+    // --- Full-Screen Reader Modal ---
+    function renderReaderContent() {
+      if (!activeReaderItem) return;
+      const lines = (activeReaderItem.content || "").split(/\r\n|\r|\n/);
+      const wrapClass = wrapLines ? "whitespace-pre-wrap break-words" : "whitespace-pre overflow-x-auto";
+
+      if (showLineNumbers) {
+        const rowsHtml = lines
+          .map(
+            (line, idx) => `
+            <div class="flex hover:bg-pink-500/5 rounded px-1">
+              <span class="select-none w-10 sm:w-12 shrink-0 text-right pr-3 text-stone-400 dark:text-zinc-600 border-r border-cream-200 dark:border-zinc-800 mr-3">${idx + 1}</span>
+              <span class="flex-1 ${wrapClass}">${line === "" ? " " : escapeHtml(line)}</span>
+            </div>`
+          )
+          .join("");
+        readerCodeContainer.innerHTML = `<div class="space-y-0.5">${rowsHtml}</div>`;
+      } else {
+        readerCodeContainer.innerHTML = `<pre class="${wrapClass}">${escapeHtml(activeReaderItem.content || "")}</pre>`;
+      }
+    }
+
+    async function openReader(item) {
+      activeReaderItem = item;
+      const { chars, lines, words } = getTextMetrics(item.content || "");
+
+      readerSlugBadge.textContent = `txt.box/${item.slug}`;
+      readerCategoryBadge.textContent = item.category || "Plain Text";
+      readerTitle.textContent = item.title || "Untitled";
+
+      if (item.visibility === "unlisted") {
+        readerVisibilityBadge.classList.remove("hidden");
+      } else {
+        readerVisibilityBadge.classList.add("hidden");
+      }
+
+      const newViews = (item.views || 0) + 1;
+      readerMetaLine.textContent = `by ${item.author || "Anon"} • ${newViews} views • ${words} words • ${chars} chars • ${lines} lines • ${formatRelativeTime(item.createdAt || Date.now())}`;
+
+      // Tags
+      if (Array.isArray(item.tags) && item.tags.length > 0) {
+        readerTagsRow.innerHTML = item.tags
+          .map(
+            (t) =>
+              `<span class="mono text-[11px] px-2 py-0.5 rounded-full bg-cream-200/70 dark:bg-zinc-800 text-stone-600 dark:text-zinc-300">#${escapeHtml(t)}</span>`
+          )
+          .join("");
+        readerTagsRow.classList.remove("hidden");
+      } else {
+        readerTagsRow.innerHTML = "";
+        readerTagsRow.classList.add("hidden");
+      }
+
+      renderReaderContent();
+      readerModal.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+
+      updateBrowserSlugState(item.slug);
+
+      // Increment view counter in Firestore
+      if (db && currentUser && item.slug) {
+        try {
+          const docRef = getPasteDocRef(db, item.slug);
+          await updateDoc(docRef, { views: increment(1) });
+        } catch (_) {}
+      }
+    }
+
+    function closeReader() {
+      readerModal.classList.add("hidden");
+      document.body.style.overflow = "";
+      activeReaderItem = null;
+      updateBrowserSlugState(null);
+    }
+
+    closeReaderBtn.addEventListener("click", closeReader);
+    readerModal.addEventListener("click", (e) => {
+      if (e.target === readerModal) closeReader();
+    });
+
+    toggleLineNumsBtn.addEventListener("click", () => {
+      showLineNumbers = !showLineNumbers;
+      toggleLineNumsBtn.textContent = `# Line Numbers: ${showLineNumbers ? "ON" : "OFF"}`;
+      renderReaderContent();
+    });
+
+    toggleWrapBtn.addEventListener("click", () => {
+      wrapLines = !wrapLines;
+      toggleWrapBtn.textContent = `Wrap: ${wrapLines ? "ON" : "OFF"}`;
+      renderReaderContent();
+    });
+
+    readerCopyLinkBtn.addEventListener("click", () => {
+      if (!activeReaderItem) return;
+      const shareUrl = buildShareUrl(activeReaderItem.slug);
+      copyTextToClipboard(shareUrl, `Copied shareable link (?id=${activeReaderItem.slug})!`);
+    });
+
+    readerCopyRawBtn.addEventListener("click", () => {
+      if (!activeReaderItem) return;
+      copyTextToClipboard(activeReaderItem.content || "", "Copied full text!");
+    });
+
+    readerDownloadBtn.addEventListener("click", () => {
+      if (!activeReaderItem) return;
+      const blob = new Blob([activeReaderItem.content || ""], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${activeReaderItem.slug || "textbox"}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded ${activeReaderItem.slug}.txt`);
+    });
+
+    // --- Open by Short ID Lookup (Supports Public & Unlisted Pastes) ---
+    async function fetchAndOpenBySlug(rawInput) {
+      let cleaned = rawInput.trim();
+      try {
+        if (cleaned.includes("id=")) {
+          const parsedUrl = new URL(cleaned, window.location.origin);
+          const paramId = parsedUrl.searchParams.get("id");
+          if (paramId) cleaned = paramId;
+        }
+      } catch (_) {}
+
+      cleaned = cleaned
+        .replace(/^https?:\/\/[^/]+\/?#?/i, "")
+        .replace(/^txt\.box\//i, "")
+        .replace(/^\?id=/i, "")
+        .replace(/^#/, "")
+        .toLowerCase();
+
+      if (!cleaned) return;
+
+      // Check local public list first
+      const cached = allPublicTexts.find((t) => t.slug === cleaned);
+      if (cached) {
+        openReader(cached);
+        return;
+      }
+
+      // Fetch directly from Firestore (allows opening Unlisted pastes across devices!)
+      if (db && currentUser) {
+        try {
+          const docRef = getPasteDocRef(db, cleaned);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            openReader({ id: snap.id, ...snap.data() });
+            return;
+          }
+        } catch (err) {
+          console.error("Lookup error:", err);
+        }
+      }
+
+      showToast(`No text found with ID "${cleaned}".`);
+    }
+
+    lookupIdBtn.addEventListener("click", () => {
+      lookupModal.classList.remove("hidden");
+      lookupSlugInput.value = "";
+      setTimeout(() => lookupSlugInput.focus(), 50);
+    });
+
+    [closeLookupBtn, cancelLookupBtn].forEach((btn) =>
+      btn.addEventListener("click", () => lookupModal.classList.add("hidden"))
+    );
+
+    lookupForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const val = lookupSlugInput.value;
+      lookupModal.classList.add("hidden");
+      await fetchAndOpenBySlug(val);
+    });
+
+    // Check URL query (?id=xxxxxx) or hash (#xxxxxx) on initial load
+    let initialLinkChecked = false;
+    function checkInitialDeepLink() {
+      if (initialLinkChecked) return;
+      initialLinkChecked = true;
+      const params = new URLSearchParams(window.location.search);
+      const querySlug = params.get("id");
+      const hashSlug = window.location.hash.replace(/^#/, "").trim();
+      const targetSlug = querySlug || hashSlug;
+      if (targetSlug) {
+        fetchAndOpenBySlug(targetSlug);
+      }
+    }
+
+    // Keyboard shortcuts (Escape to close modals)
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        if (!readerModal.classList.contains("hidden")) closeReader();
+        if (!lookupModal.classList.contains("hidden")) lookupModal.classList.add("hidden");
+      }
+    });
+
+    logoResetBtn.addEventListener("click", () => {
+      searchQuery = "";
+      searchInput.value = "";
+      clearSearchBtn.classList.add("hidden");
+      selectedCategory = "All";
+      renderLibrary();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    // Boot App
+    initFirebaseAndData();
+  </script>
+</body>
+</html>
