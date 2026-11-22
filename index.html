@@ -890,20 +890,22 @@
           },
           (error) => {
             console.error("Firestore listener error:", error);
-            const hint = error.code === "permission-denied"
-              ? "Firestore permission denied — using local fallback. Enable Test Mode on /pastes in Firebase Console."
-              : `Firestore error (${error.code || "offline"}) — using local fallback.`;
-            setConnectionStatus("offline", "Local Fallback", hint);
+            const errCode = error.code || "unknown";
+            const hint = errCode === "permission-denied"
+              ? `Firestore blocked reads (permission-denied). Update Firestore Rules on catboxjr to allow read, write.`
+              : `Firestore error (${errCode}): ${error.message || "check rules/network"}`;
+            setConnectionStatus("offline", `DB: ${errCode}`, hint);
             showToast(hint);
             checkInitialDeepLink();
           }
         );
       } catch (err) {
         console.error("Firebase init failed:", err);
-        const hint = err.code === "auth/operation-not-allowed"
-          ? "Enable Anonymous sign-in in Firebase Console. Using local storage fallback for now."
-          : `Cloud offline (${err.message}). Using local storage fallback.`;
-        setConnectionStatus("offline", "Local Fallback", hint);
+        const errCode = err.code || "auth-error";
+        const hint = errCode === "auth/operation-not-allowed"
+          ? "Anonymous sign-in is OFF in Firebase Console -> Authentication -> Sign-in method."
+          : `Firebase error (${errCode}): ${err.message}`;
+        setConnectionStatus("offline", errCode, hint);
         showToast(hint);
         checkInitialDeepLink();
       }
@@ -964,14 +966,19 @@
         };
 
         let savedToCloud = false;
+        let cloudErrorMsg = "";
         if (db && currentUser) {
           try {
             const docRef = getPasteDocRef(db, slug);
             await setDoc(docRef, newEntry);
             savedToCloud = true;
           } catch (cloudErr) {
-            console.warn("Cloud write failed, falling back to local storage:", cloudErr);
+            console.error("Cloud write failed:", cloudErr);
+            cloudErrorMsg = cloudErr.code ? `${cloudErr.code}` : (cloudErr.message || "write failed");
+            setConnectionStatus("offline", `Write: ${cloudErrorMsg}`, `Firestore setDoc failed: ${cloudErr.message || cloudErrorMsg}`);
           }
+        } else {
+          cloudErrorMsg = !db ? "no-db" : "not-authed";
         }
 
         if (!savedToCloud) {
@@ -997,7 +1004,11 @@
         selectedFileBadge.classList.add("hidden");
         updateLiveStats();
 
-        showToast(savedToCloud ? `Saved to Cloud! Share ID: ${slug}` : `Saved locally! Share ID: ${slug}`);
+        showToast(
+          savedToCloud
+            ? `Saved to Firebase (catboxjr)! ID: ${slug}`
+            : `Local only (${cloudErrorMsg}) — check Firestore Rules in Firebase Console`
+        );
       } catch (err) {
         console.error("Upload failed:", err);
         showToast("Upload failed. Please try again.");
