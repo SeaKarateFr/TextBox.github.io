@@ -463,6 +463,8 @@
     let auth = null;
     let currentUser = null;
     let unsubscribeLibrary = null;
+    const LOCAL_FALLBACK_KEY = "textbox_catboxjr_fallback_v1";
+
     // App State
     let allPublicTexts = [];
     let selectedCategory = "All";
@@ -697,6 +699,29 @@
           url.searchParams.delete("id");
         }
         history.replaceState(null, "", url.toString());
+      } catch (_) {}
+    }
+
+    function loadLocalFallbackPastes() {
+      try {
+        const raw = localStorage.getItem(LOCAL_FALLBACK_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (_) {}
+      return [...SEED_ENTRIES];
+    }
+
+    function saveLocalFallbackPaste(entry) {
+      try {
+        const current = loadLocalFallbackPastes();
+        const filtered = current.filter((item) => item.slug !== entry.slug);
+        filtered.unshift(entry);
+        localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(filtered));
+      } catch (_) {}
+    }
+
     function setConnectionStatus(state, label, tooltipText = "") {
       syncStatusText.textContent = label;
       if (tooltipText) {
@@ -805,6 +830,17 @@
 
     // --- Firebase Initialization & Data Sync ---
     async function initFirebaseAndData() {
+      // Immediately render cached/seed items so the library & buttons feel instant
+      const initialLocal = loadLocalFallbackPastes();
+      allPublicTexts = initialLocal.filter((item) => item.visibility !== "unlisted");
+      renderLibrary();
+
+      if (window.location.protocol === "file:") {
+        setConnectionStatus("offline", "Local Mode", "Opened via file:// — using local storage. Host on HTTP/HTTPS for live catboxjr cloud sync.");
+        checkInitialDeepLink();
+        return;
+      }
+
       setConnectionStatus("connecting", "Connecting...", "Connecting to Firebase...");
 
       try {
@@ -855,21 +891,20 @@
           (error) => {
             console.error("Firestore listener error:", error);
             const hint = error.code === "permission-denied"
-              ? "Firestore permission denied. Enable Test Mode or allow read/write on /pastes in Firebase Console."
-              : `Firestore error: ${error.message}`;
-            setConnectionStatus("offline", "Firestore Error", hint);
+              ? "Firestore permission denied — using local fallback. Enable Test Mode on /pastes in Firebase Console."
+              : `Firestore error (${error.code || "offline"}) — using local fallback.`;
+            setConnectionStatus("offline", "Local Fallback", hint);
             showToast(hint);
+            checkInitialDeepLink();
           }
         );
       } catch (err) {
         console.error("Firebase init failed:", err);
         const hint = err.code === "auth/operation-not-allowed"
-          ? "Enable 'Anonymous' sign-in under Firebase Console → Authentication → Sign-in method."
-          : `Connection error: ${err.message}`;
-        setConnectionStatus("offline", "Auth Setup Needed", hint);
+          ? "Enable Anonymous sign-in in Firebase Console. Using local storage fallback for now."
+          : `Cloud offline (${err.message}). Using local storage fallback.`;
+        setConnectionStatus("offline", "Local Fallback", hint);
         showToast(hint);
-        allPublicTexts = [...SEED_ENTRIES];
-        renderLibrary();
         checkInitialDeepLink();
       }
     }
@@ -878,67 +913,73 @@
       if (!db || !currentUser) return;
       try {
         const textsCol = getPastesCollectionRef(db);
-        const existingSnap = await getDocs(textsCol);
-        if (existingSnap.empty) {
+        const snap = await getDocs(textsCol);
+        if (snap.empty) {
           for (const entry of SEED_ENTRIES) {
-            const docRef = getPasteDocRef(db, entry.slug);
-            await setDoc(docRef, entry);
+            await setDoc(getPasteDocRef(db, entry.slug), entry);
           }
         }
       } catch (err) {
-        console.error("Error seeding initial texts:", err);
+        console.warn("Could not auto-seed library:", err);
       }
     }
 
-    // --- Form Submission (Upload Text) ---
+    // --- Upload Form Submission ---
     uploadForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const rawContent = inputContent.value;
-      if (!rawContent || !rawContent.trim()) {
-        showToast("Please enter or drop some text first!");
+      if (!rawContent.trim()) {
+        showToast("Please enter or drop some text first.");
         inputContent.focus();
         return;
       }
 
-      if (rawContent.length > 260000) {
-        showToast("Text exceeds 250 KB limit.");
+      if (rawContent.length > 260 * 1024) {
+        showToast("Content exceeds 250 KB limit.");
         return;
       }
 
       submitBtn.disabled = true;
       submitBtn.querySelector("span").textContent = "Uploading...";
 
-      const slug = generateSlug(6);
-      const title = inputTitle.value.trim() || `Untitled #${slug}`;
-      const category = inputCategory.value;
-      const author = inputAuthor.value.trim() || "Anon";
-      const visibility = document.querySelector('input[name="visibility"]:checked').value;
-      const tags = inputTags.value
-        .split(",")
-        .map((t) => t.trim().replace(/^#/, "").toLowerCase())
-        .filter(Boolean)
-        .slice(0, 6);
-
-      const newEntry = {
-        slug,
-        title,
-        category,
-        author,
-        tags,
-        visibility,
-        content: rawContent,
-        views: 1,
-        createdAt: Date.now(),
-        uid: currentUser ? currentUser.uid : "anon"
-      };
-
       try {
+        const slug = generateSlug(6);
+        const visibility = document.getElementById("visibilityUnlisted").checked ? "unlisted" : "public";
+        const tags = inputTags.value
+          .split(",")
+          .map((t) => t.trim().replace(/^#/, ""))
+          .filter(Boolean)
+          .slice(0, 8);
+
+        const newEntry = {
+          slug,
+          title: inputTitle.value.trim() || `Untitled (${slug})`,
+          category: inputCategory.value || "Plain Text",
+          author: inputAuthor.value.trim() || "Anon",
+          tags,
+          visibility,
+          views: 0,
+          createdAt: Date.now(),
+          content: rawContent
+        };
+
+        let savedToCloud = false;
         if (db && currentUser) {
-          const docRef = getPasteDocRef(db, slug);
-          await setDoc(docRef, newEntry);
-        } else {
-          showToast("Cloud database unavailable. Check Anonymous Auth & Firestore rules.");
-          return;
+          try {
+            const docRef = getPasteDocRef(db, slug);
+            await setDoc(docRef, newEntry);
+            savedToCloud = true;
+          } catch (cloudErr) {
+            console.warn("Cloud write failed, falling back to local storage:", cloudErr);
+          }
+        }
+
+        if (!savedToCloud) {
+          saveLocalFallbackPaste(newEntry);
+          if (visibility !== "unlisted") {
+            allPublicTexts = [newEntry, ...allPublicTexts.filter((t) => t.slug !== slug)];
+            renderLibrary();
+          }
         }
 
         lastUploadedItem = newEntry;
@@ -956,10 +997,10 @@
         selectedFileBadge.classList.add("hidden");
         updateLiveStats();
 
-        showToast(`Saved to Cloud! Share ID: ${slug}`);
+        showToast(savedToCloud ? `Saved to Cloud! Share ID: ${slug}` : `Saved locally! Share ID: ${slug}`);
       } catch (err) {
         console.error("Upload failed:", err);
-        showToast("Upload failed. Please check connection.");
+        showToast("Upload failed. Please try again.");
       } finally {
         submitBtn.disabled = false;
         submitBtn.querySelector("span").textContent = "Upload Text";
@@ -1270,6 +1311,13 @@
         return;
       }
 
+      // Check local fallback storage (includes unlisted pastes saved locally)
+      const localMatch = loadLocalFallbackPastes().find((t) => t.slug === cleaned);
+      if (localMatch) {
+        openReader(localMatch);
+        return;
+      }
+
       // Fetch directly from Firestore (allows opening Unlisted pastes across devices!)
       if (db && currentUser) {
         try {
@@ -1331,12 +1379,21 @@
       searchInput.value = "";
       clearSearchBtn.classList.add("hidden");
       selectedCategory = "All";
+      document.querySelectorAll(".cat-pill").forEach((pill, idx) => {
+        pill.className = idx === 0
+          ? "cat-pill active px-3 py-1.5 rounded-full text-xs font-semibold bg-stone-900 text-white dark:bg-pink-500 dark:text-white transition-all whitespace-nowrap"
+          : "cat-pill px-3 py-1.5 rounded-full text-xs font-medium bg-white dark:bg-zinc-900 text-stone-600 dark:text-zinc-300 border border-cream-300 dark:border-zinc-800 hover:border-pink-400 transition-all whitespace-nowrap";
+      });
       renderLibrary();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
 
     // Boot App
-    initFirebaseAndData();
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initFirebaseAndData);
+    } else {
+      initFirebaseAndData();
+    }
   </script>
 </body>
 </html>
